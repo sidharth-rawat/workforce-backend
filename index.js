@@ -2,6 +2,10 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
+const mongoSanitize = require('express-mongo-sanitize');
+const hpp = require('hpp');
+const rateLimit = require('express-rate-limit');
 
 const authRoutes = require('./routes/auth');
 const employeeRoutes = require('./routes/employees');
@@ -11,7 +15,10 @@ const leaveRoutes = require('./routes/leaves');
 
 const app = express();
 
-// Middleware
+// Security headers
+app.use(helmet());
+
+// CORS
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.CLIENT_URL,
@@ -27,7 +34,37 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json());
+
+// Body parser — limit payload size to prevent large payload attacks
+app.use(express.json({ limit: '10kb' }));
+
+// Sanitize request data against NoSQL injection (strips $ and . from req.body/params/query)
+app.use(mongoSanitize());
+
+// Prevent HTTP parameter pollution
+app.use(hpp());
+
+// General rate limiter — all API routes
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+});
+
+// Strict limiter for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' },
+});
+
+app.use('/api/', generalLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -41,12 +78,15 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date() });
 });
 
-// Error handling middleware
+// Error handling middleware — never leak stack traces to the client
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(err.statusCode || 500).json({
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
     success: false,
-    message: err.message || 'Internal Server Error',
+    message: statusCode === 500 && process.env.NODE_ENV === 'production'
+      ? 'Internal Server Error'
+      : err.message || 'Internal Server Error',
   });
 });
 

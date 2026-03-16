@@ -13,6 +13,9 @@ const signToken = (user) => {
   );
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ALLOWED_ROLES = ['admin', 'hr', 'manager', 'employee'];
+
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   try {
@@ -22,8 +25,17 @@ router.post('/register', async (req, res) => {
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'name, email and password are required' });
     }
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: 'Invalid email address' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+    if (role && !ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ success: false, message: 'Invalid role' });
+    }
 
-    const existingUser = await User.findOne({ email, appName });
+    const existingUser = await User.findOne({ email: email.toLowerCase(), appName });
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'Email already in use' });
     }
