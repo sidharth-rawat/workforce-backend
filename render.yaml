@@ -1,0 +1,36 @@
+# Render configuration for WorkForce Pro backend
+# Docs: https://render.com/docs/render-yaml-spec
+
+services:
+  - type: web
+    name: workforce-api
+    runtime: node
+    region: oregon
+    plan: free
+
+    # Root directory within the repo
+    rootDir: server
+
+    buildCommand: npm ci
+    startCommand: npm start
+
+    # Auto-deploy on every push to main
+    autoDeploy: true
+
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000          # Render assigns 10000 by default
+
+      # These must be set in the Render dashboard (not committed to repo)
+      - key: MONGODB_URI
+        sync: false           # Set manually in Render dashboard
+      - key: JWT_SECRET
+        sync: false           # Set manually in Render dashboard
+      - key: JWT_EXPIRE
+        value: 7d
+      - key: APP_NAME
+        value: workforce
