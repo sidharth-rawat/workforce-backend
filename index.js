@@ -15,6 +15,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   process.env.CLIENT_URL,
+  'https://workforce-pro1.netlify.app'
 ].filter(Boolean);
 
 app.use(cors({
